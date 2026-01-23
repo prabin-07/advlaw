@@ -1,0 +1,11 @@
+/* App-specific styles using Tailwind CSS */
+
+.logo-spin {
+  animation: spin 20s linear infinite;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .logo-spin {
+    animation: spin 20s linear infinite;
+  }
+}
