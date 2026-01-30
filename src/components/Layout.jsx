@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import lawLogo from '../assets/law-logo.png'
 
 function Layout({ user, onLogout, children }) {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const [isNavbarOpen, setIsNavbarOpen] = useState(false)
   const location = useLocation()
 
   const navigation = [
@@ -41,72 +41,68 @@ function Layout({ user, onLogout, children }) {
 
   return (
     <div className="min-h-screen bg-black flex">
-      {/* Sidebar */}
-      <div className={`${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} fixed inset-y-0 left-0 z-50 w-64 bg-gray-900 transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0`}>
-        <div className="flex items-center justify-between h-16 px-4 border-b border-gray-700">
-          <div className="flex items-center">
-            <img src={lawLogo} alt="Law Logo" className="h-8 w-8 mr-3" />
-            <span className="text-xl font-bold text-white">Advocate AI</span>
-          </div>
-          <button
-            onClick={() => setIsSidebarOpen(false)}
-            className="lg:hidden text-gray-400 hover:text-white"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
+      {/* Top Navbar */}
+<div className="fixed top-0 left-0 right-0 z-50 h-16 bg-gray-900 border-b border-gray-700">
+  <div className="flex items-center h-full px-6">
+    
+    {/* Logo */}
+    <div className="flex items-center">
+      <img src={lawLogo} alt="Law Logo" className="h-8 w-8 mr-3" />
+      <span className="text-xl font-bold text-white">Advocate AI</span>
+    </div>
 
-        <nav className="mt-8 px-4">
-          <ul className="space-y-2">
-            {navigation.map((item) => (
-              <li key={item.name}>
-                <Link
-                  to={item.href}
-                  className={`flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors duration-200 ${
-                    location.pathname === item.href
-                      ? 'bg-blue-600 text-white'
-                      : 'text-gray-300 hover:bg-gray-800 hover:text-white'
-                  }`}
-                >
-                  {getIcon(item.icon)}
-                  <span className="ml-3">{item.name}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </nav>
+    {/* Navigation */}
+    <nav className="ml-10">
+      <ul className="flex items-center space-x-6">
+        {navigation.map((item) => (
+          <li key={item.name}>
+            <Link
+              to={item.href}
+              className={`flex items-center text-sm font-medium transition-colors ${
+                location.pathname === item.href
+                  ? 'text-blue-500'
+                  : 'text-gray-300 hover:text-white'
+              }`}
+            >
+              {getIcon(item.icon)}
+              <span className="ml-2">{item.name}</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </nav>
 
-        {/* User info at bottom */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-700">
-          <div className="flex items-center mb-3">
-            <div className="w-8 h-8 bg-gray-700 rounded-full flex items-center justify-center">
-              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
-            </div>
-            <div className="ml-3">
-              <p className="text-sm font-medium text-white truncate">{user?.email}</p>
-              <p className="text-xs text-gray-400">User</p>
-            </div>
-          </div>
-          <button
-            onClick={onLogout}
-            className="w-full bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-lg text-sm font-medium transition-colors duration-200"
-          >
-            Logout
-          </button>
+    {/* User Section */}
+    <div className="ml-auto flex items-center space-x-4">
+      <div className="flex items-center">
+        <div className="w-8 h-8 bg-gray-700 rounded-full flex items-center justify-center">
+          <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+          </svg>
         </div>
+        <span className="ml-2 text-sm text-white truncate max-w-[150px]">
+          {user?.email}
+        </span>
       </div>
 
+      <button
+        onClick={onLogout}
+        className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition"
+      >
+        Logout
+      </button>
+    </div>
+  </div>
+</div>
+
+
       {/* Main content */}
-      <div className="flex-1 lg:ml-0">
+      <div className="flex-1 lg:ml-0 mt-16 flex flex-col">
         {/* Top bar */}
         <header className="bg-gray-900 shadow-sm border-b border-gray-700 lg:hidden">
           <div className="flex items-center justify-between h-16 px-4">
             <button
-              onClick={() => setIsSidebarOpen(true)}
+              onClick={() => setIsNavbarOpen(true)}
               className="text-gray-400 hover:text-white"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -128,12 +124,12 @@ function Layout({ user, onLogout, children }) {
       </div>
 
       {/* Overlay for mobile */}
-      {isSidebarOpen && (
+      {isNavbarOpen && (
         <div
           className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
-          onClick={() => setIsSidebarOpen(false)}
+          onClick={() => setIsNavbarOpen(false)}
         ></div>
-      )}
+      )}  
     </div>
   )
 }

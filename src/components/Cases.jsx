@@ -1,12 +1,24 @@
 import { useState } from 'react'
 
 function Cases() {
-  const [cases] = useState([
-    { id: 1, title: 'Contract Dispute', client: 'John Doe', status: 'Active', date: '2025-01-15', priority: 'High' },
-    { id: 2, title: 'Employment Issue', client: 'Jane Smith', status: 'Pending', date: '2025-01-14', priority: 'Medium' },
-    { id: 3, title: 'Property Rights', client: 'Mike Johnson', status: 'Closed', date: '2025-01-10', priority: 'Low' },
-    { id: 4, title: 'Intellectual Property', client: 'Sarah Williams', status: 'Active', date: '2025-01-12', priority: 'High' }
+  const [cases, setCases] = useState([
+    { id: 1, title: 'Contract Dispute', client: 'John Doe', status: 'Active', date: '2025-01-15', priority: 'High', description: 'Contract breach case involving payment disputes' },
+    { id: 2, title: 'Employment Issue', client: 'Jane Smith', status: 'Pending', date: '2025-01-14', priority: 'Medium', description: 'Wrongful termination claim' },
+    { id: 3, title: 'Property Rights', client: 'Mike Johnson', status: 'Closed', date: '2025-01-10', priority: 'Low', description: 'Property boundary dispute resolution' },
+    { id: 4, title: 'Intellectual Property', client: 'Sarah Williams', status: 'Active', date: '2025-01-12', priority: 'High', description: 'Patent infringement case' }
   ])
+
+  const [showModal, setShowModal] = useState(false)
+  const [editingCase, setEditingCase] = useState(null)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [statusFilter, setStatusFilter] = useState('All')
+  const [formData, setFormData] = useState({
+    title: '',
+    client: '',
+    status: 'Pending',
+    priority: 'Medium',
+    description: ''
+  })
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -26,6 +38,71 @@ function Cases() {
     }
   }
 
+  const handleInputChange = (e) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value
+    })
+  }
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    if (editingCase) {
+      // Update existing case
+      setCases(cases.map(c => 
+        c.id === editingCase.id 
+          ? { ...editingCase, ...formData, date: new Date().toISOString().split('T')[0] }
+          : c
+      ))
+    } else {
+      // Add new case
+      const newCase = {
+        id: Math.max(...cases.map(c => c.id)) + 1,
+        ...formData,
+        date: new Date().toISOString().split('T')[0]
+      }
+      setCases([...cases, newCase])
+    }
+    resetForm()
+  }
+
+  const resetForm = () => {
+    setFormData({
+      title: '',
+      client: '',
+      status: 'Pending',
+      priority: 'Medium',
+      description: ''
+    })
+    setEditingCase(null)
+    setShowModal(false)
+  }
+
+  const handleEdit = (caseItem) => {
+    setEditingCase(caseItem)
+    setFormData({
+      title: caseItem.title,
+      client: caseItem.client,
+      status: caseItem.status,
+      priority: caseItem.priority,
+      description: caseItem.description
+    })
+    setShowModal(true)
+  }
+
+  const handleDelete = (id) => {
+    if (window.confirm('Are you sure you want to delete this case?')) {
+      setCases(cases.filter(c => c.id !== id))
+    }
+  }
+
+  const filteredCases = cases.filter(caseItem => {
+    const matchesSearch = caseItem.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         caseItem.client.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesStatus = statusFilter === 'All' || caseItem.status === statusFilter
+    return matchesSearch && matchesStatus
+  })
+
   return (
     <div className="max-w-7xl mx-auto p-8">
       <div className="mb-8">
@@ -33,9 +110,35 @@ function Cases() {
         <p className="text-gray-300">Manage and track all your legal cases</p>
       </div>
 
+      {/* Search and Filter Bar */}
+      <div className="mb-6 flex flex-wrap gap-4 items-center">
+        <div className="flex-1 min-w-[300px]">
+          <input
+            type="text"
+            placeholder="Search cases by title or client..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full px-4 py-2 border border-gray-600 bg-gray-700 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="px-4 py-2 border border-gray-600 bg-gray-700 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="All">All Status</option>
+          <option value="Active">Active</option>
+          <option value="Pending">Pending</option>
+          <option value="Closed">Closed</option>
+        </select>
+      </div>
+
       {/* Action Buttons */}
       <div className="mb-6 flex flex-wrap gap-4">
-        <button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors duration-200">
+        <button 
+          onClick={() => setShowModal(true)}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors duration-200"
+        >
           New Case
         </button>
         <button className="bg-gray-600 hover:bg-gray-700 text-white px-6 py-2 rounded-lg transition-colors duration-200">
@@ -49,7 +152,7 @@ function Cases() {
       {/* Cases Table */}
       <div className="bg-gray-800 rounded-lg shadow border border-gray-700">
         <div className="p-6 border-b border-gray-700">
-          <h2 className="text-xl font-semibold text-white">All Cases</h2>
+          <h2 className="text-xl font-semibold text-white">All Cases ({filteredCases.length})</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -64,9 +167,14 @@ function Cases() {
               </tr>
             </thead>
             <tbody className="bg-gray-800 divide-y divide-gray-700">
-              {cases.map((caseItem) => (
+              {filteredCases.map((caseItem) => (
                 <tr key={caseItem.id} className="hover:bg-gray-700">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">{caseItem.title}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div>
+                      <div className="text-sm font-medium text-white">{caseItem.title}</div>
+                      <div className="text-sm text-gray-400">{caseItem.description}</div>
+                    </div>
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{caseItem.client}</td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(caseItem.status)}`}>
@@ -80,9 +188,18 @@ function Cases() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{caseItem.date}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button className="text-blue-400 hover:text-blue-300 mr-3">View</button>
-                    <button className="text-green-400 hover:text-green-300 mr-3">Edit</button>
-                    <button className="text-red-400 hover:text-red-300">Delete</button>
+                    <button 
+                      onClick={() => handleEdit(caseItem)}
+                      className="text-blue-400 hover:text-blue-300 mr-3"
+                    >
+                      Edit
+                    </button>
+                    <button 
+                      onClick={() => handleDelete(caseItem.id)}
+                      className="text-red-400 hover:text-red-300"
+                    >
+                      Delete
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -149,6 +266,109 @@ function Cases() {
           </div>
         </div>
       </div>
+
+      {/* Modal for Add/Edit Case */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md border border-gray-700">
+            <h3 className="text-xl font-semibold text-white mb-4">
+              {editingCase ? 'Edit Case' : 'Add New Case'}
+            </h3>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">
+                  Case Title
+                </label>
+                <input
+                  type="text"
+                  name="title"
+                  value={formData.title}
+                  onChange={handleInputChange}
+                  required
+                  className="w-full px-3 py-2 border border-gray-600 bg-gray-700 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">
+                  Client Name
+                </label>
+                <input
+                  type="text"
+                  name="client"
+                  value={formData.client}
+                  onChange={handleInputChange}
+                  required
+                  className="w-full px-3 py-2 border border-gray-600 bg-gray-700 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">
+                    Status
+                  </label>
+                  <select
+                    name="status"
+                    value={formData.status}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-600 bg-gray-700 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="Pending">Pending</option>
+                    <option value="Active">Active</option>
+                    <option value="Closed">Closed</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">
+                    Priority
+                  </label>
+                  <select
+                    name="priority"
+                    value={formData.priority}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-600 bg-gray-700 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="Low">Low</option>
+                    <option value="Medium">Medium</option>
+                    <option value="High">High</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">
+                  Description
+                </label>
+                <textarea
+                  name="description"
+                  value={formData.description}
+                  onChange={handleInputChange}
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-600 bg-gray-700 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="flex space-x-4 pt-4">
+                <button
+                  type="submit"
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg transition-colors duration-200"
+                >
+                  {editingCase ? 'Update Case' : 'Create Case'}
+                </button>
+                <button
+                  type="button"
+                  onClick={resetForm}
+                  className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-2 px-4 rounded-lg transition-colors duration-200"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

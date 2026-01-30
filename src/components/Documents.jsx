@@ -1,12 +1,18 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 
 function Documents() {
-  const [documents] = useState([
+  const [documents, setDocuments] = useState([
     { id: 1, name: 'Contract_Agreement.pdf', type: 'Contract', size: '2.4 MB', date: '2025-01-15', status: 'Processed' },
     { id: 2, name: 'Legal_Brief.docx', type: 'Brief', size: '1.8 MB', date: '2025-01-14', status: 'Processing' },
     { id: 3, name: 'Evidence_Photos.zip', type: 'Evidence', size: '15.2 MB', date: '2025-01-12', status: 'Processed' },
     { id: 4, name: 'Client_Statement.pdf', type: 'Statement', size: '0.9 MB', date: '2025-01-10', status: 'Processed' }
   ])
+
+  const [searchTerm, setSearchTerm] = useState('')
+  const [typeFilter, setTypeFilter] = useState('All')
+  const [isDragging, setIsDragging] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState({})
+  const fileInputRef = useRef(null)
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -46,6 +52,95 @@ function Documents() {
     }
   }
 
+  const handleFileUpload = (files) => {
+    Array.from(files).forEach(file => {
+      const fileId = Date.now() + Math.random()
+      const newDoc = {
+        id: fileId,
+        name: file.name,
+        type: getFileType(file.name),
+        size: formatFileSize(file.size),
+        date: new Date().toISOString().split('T')[0],
+        status: 'Processing'
+      }
+
+      setDocuments(prev => [...prev, newDoc])
+      setUploadProgress(prev => ({ ...prev, [fileId]: 0 }))
+
+      // Simulate upload progress
+      const interval = setInterval(() => {
+        setUploadProgress(prev => {
+          const currentProgress = prev[fileId] || 0
+          if (currentProgress >= 100) {
+            clearInterval(interval)
+            setDocuments(docs => docs.map(doc => 
+              doc.id === fileId ? { ...doc, status: 'Processed' } : doc
+            ))
+            return prev
+          }
+          return { ...prev, [fileId]: currentProgress + 10 }
+        })
+      }, 200)
+    })
+  }
+
+  const getFileType = (filename) => {
+    const ext = filename.split('.').pop().toLowerCase()
+    if (['pdf'].includes(ext)) return 'Contract'
+    if (['doc', 'docx'].includes(ext)) return 'Brief'
+    if (['jpg', 'jpeg', 'png', 'zip'].includes(ext)) return 'Evidence'
+    return 'Statement'
+  }
+
+  const formatFileSize = (bytes) => {
+    if (bytes === 0) return '0 Bytes'
+    const k = 1024
+    const sizes = ['Bytes', 'KB', 'MB', 'GB']
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
+  }
+
+  const handleDragOver = (e) => {
+    e.preventDefault()
+    setIsDragging(true)
+  }
+
+  const handleDragLeave = (e) => {
+    e.preventDefault()
+    setIsDragging(false)
+  }
+
+  const handleDrop = (e) => {
+    e.preventDefault()
+    setIsDragging(false)
+    const files = e.dataTransfer.files
+    handleFileUpload(files)
+  }
+
+  const handleFileSelect = (e) => {
+    const files = e.target.files
+    if (files.length > 0) {
+      handleFileUpload(files)
+    }
+  }
+
+  const handleDelete = (id) => {
+    if (window.confirm('Are you sure you want to delete this document?')) {
+      setDocuments(documents.filter(doc => doc.id !== id))
+      setUploadProgress(prev => {
+        const newProgress = { ...prev }
+        delete newProgress[id]
+        return newProgress
+      })
+    }
+  }
+
+  const filteredDocuments = documents.filter(doc => {
+    const matchesSearch = doc.name.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesType = typeFilter === 'All' || doc.type === typeFilter
+    return matchesSearch && matchesType
+  })
+
   return (
     <div className="max-w-7xl mx-auto p-8">
       <div className="mb-8">
@@ -53,9 +148,36 @@ function Documents() {
         <p className="text-gray-300">Upload, analyze, and manage your legal documents</p>
       </div>
 
+      {/* Search and Filter Bar */}
+      <div className="mb-6 flex flex-wrap gap-4 items-center">
+        <div className="flex-1 min-w-[300px]">
+          <input
+            type="text"
+            placeholder="Search documents..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full px-4 py-2 border border-gray-600 bg-gray-700 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <select
+          value={typeFilter}
+          onChange={(e) => setTypeFilter(e.target.value)}
+          className="px-4 py-2 border border-gray-600 bg-gray-700 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="All">All Types</option>
+          <option value="Contract">Contract</option>
+          <option value="Brief">Brief</option>
+          <option value="Evidence">Evidence</option>
+          <option value="Statement">Statement</option>
+        </select>
+      </div>
+
       {/* Action Buttons */}
       <div className="mb-6 flex flex-wrap gap-4">
-        <button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors duration-200 flex items-center">
+        <button 
+          onClick={() => fileInputRef.current?.click()}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors duration-200 flex items-center"
+        >
           <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
           </svg>
@@ -65,7 +187,7 @@ function Documents() {
           <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
           </svg>
-          Analyze Documents
+          Analyze All
         </button>
         <button className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg transition-colors duration-200 flex items-center">
           <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -75,9 +197,19 @@ function Documents() {
         </button>
       </div>
 
+      {/* Hidden file input */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileSelect}
+        multiple
+        accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.zip"
+        className="hidden"
+      />
+
       {/* Documents Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-        {documents.map((doc) => (
+        {filteredDocuments.map((doc) => (
           <div key={doc.id} className="bg-gray-800 rounded-lg shadow p-6 border border-gray-700 hover:border-gray-600 transition-colors">
             <div className="flex items-start justify-between mb-4">
               <div className="flex items-center">
@@ -91,6 +223,22 @@ function Documents() {
                 {doc.status}
               </span>
             </div>
+            
+            {/* Upload Progress Bar */}
+            {uploadProgress[doc.id] !== undefined && uploadProgress[doc.id] < 100 && (
+              <div className="mb-4">
+                <div className="flex justify-between text-sm text-gray-400 mb-1">
+                  <span>Uploading...</span>
+                  <span>{uploadProgress[doc.id]}%</span>
+                </div>
+                <div className="w-full bg-gray-700 rounded-full h-2">
+                  <div 
+                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${uploadProgress[doc.id]}%` }}
+                  ></div>
+                </div>
+              </div>
+            )}
             
             <div className="space-y-2 mb-4">
               <div className="flex justify-between text-sm">
@@ -110,22 +258,99 @@ function Documents() {
               <button className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-2 px-3 rounded text-sm transition-colors duration-200">
                 Download
               </button>
+              <button 
+                onClick={() => handleDelete(doc.id)}
+                className="bg-red-600 hover:bg-red-700 text-white py-2 px-3 rounded text-sm transition-colors duration-200"
+              >
+                Delete
+              </button>
             </div>
           </div>
         ))}
       </div>
 
       {/* Upload Area */}
-      <div className="bg-gray-800 rounded-lg shadow border-2 border-dashed border-gray-600 p-12 text-center">
+      <div 
+        className={`bg-gray-800 rounded-lg shadow border-2 border-dashed p-12 text-center transition-colors ${
+          isDragging ? 'border-blue-500 bg-gray-700' : 'border-gray-600'
+        }`}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
         <svg className="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
         </svg>
-        <h3 className="text-xl font-medium text-white mb-2">Drop files here to upload</h3>
+        <h3 className="text-xl font-medium text-white mb-2">
+          {isDragging ? 'Drop files here' : 'Drop files here to upload'}
+        </h3>
         <p className="text-gray-400 mb-4">or click to browse your files</p>
-        <button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors duration-200">
+        <button 
+          onClick={() => fileInputRef.current?.click()}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors duration-200"
+        >
           Choose Files
         </button>
-        <p className="text-gray-500 text-sm mt-2">Supports PDF, DOC, DOCX, TXT files up to 50MB</p>
+        <p className="text-gray-500 text-sm mt-2">Supports PDF, DOC, DOCX, TXT, JPG, PNG, ZIP files up to 50MB</p>
+      </div>
+
+      {/* Document Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-8">
+        <div className="bg-gray-800 rounded-lg shadow p-6 border border-gray-700">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-300 mb-1">Total Documents</p>
+              <p className="text-3xl font-bold text-white">{documents.length}</p>
+            </div>
+            <div className="bg-blue-900 rounded-full p-3">
+              <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-gray-800 rounded-lg shadow p-6 border border-gray-700">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-300 mb-1">Processed</p>
+              <p className="text-3xl font-bold text-white">{documents.filter(d => d.status === 'Processed').length}</p>
+            </div>
+            <div className="bg-green-900 rounded-full p-3">
+              <svg className="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-gray-800 rounded-lg shadow p-6 border border-gray-700">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-300 mb-1">Processing</p>
+              <p className="text-3xl font-bold text-white">{documents.filter(d => d.status === 'Processing').length}</p>
+            </div>
+            <div className="bg-yellow-900 rounded-full p-3">
+              <svg className="w-6 h-6 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-gray-800 rounded-lg shadow p-6 border border-gray-700">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-300 mb-1">Total Size</p>
+              <p className="text-3xl font-bold text-white">20.1 MB</p>
+            </div>
+            <div className="bg-purple-900 rounded-full p-3">
+              <svg className="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+              </svg>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   )
