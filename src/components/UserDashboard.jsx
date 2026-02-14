@@ -15,7 +15,7 @@ function UserDashboard({ user, onLogout }) {
     pendingReviews: 2,
     documentsUploaded: 25
   })
-
+  
   return (
     <div className="min-h-screen bg-black">
       {/* Header */}

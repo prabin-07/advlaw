@@ -106,6 +106,7 @@ function App() {
           <Route path="/documents" element={<Documents />} />
           <Route path="/profile" element={<Profile user={user} />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/NewCase" element={<NewCase />} />
         </Routes>
       </Layout>
     </Router>

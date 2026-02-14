@@ -1,12 +1,8 @@
-/**
- * Card Component - Reusable card container with consistent styling
- * Maintains the existing dark theme design patterns
- */
 function Card({ 
   children, 
   className = '', 
   padding = 'p-6',
-  hover = false 
+  hover = true 
 }) {
   const baseClasses = 'bg-gray-800 rounded-lg shadow border border-gray-700'
   const hoverClasses = hover ? 'hover:border-gray-600 transition-colors' : ''
@@ -20,9 +16,6 @@ function Card({
   )
 }
 
-/**
- * CardHeader Component - Header section for cards
- */
 function CardHeader({ children, className = '' }) {
   return (
     <div className={`mb-4 ${className}`}>

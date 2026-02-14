@@ -1,7 +1,3 @@
-/**
- * Button Component - Reusable button with consistent styling
- * Supports different variants, sizes, and states
- */
 function Button({ 
   children, 
   variant = 'primary', 

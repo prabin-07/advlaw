@@ -1,9 +1,5 @@
 import { useState } from 'react'
 
-/**
- * SearchBar Component - Reusable search/input component for case analysis
- * Supports multi-line text input with loading states
- */
 function SearchBar({ 
   onSubmit, 
   placeholder = "Describe your legal case details...", 
