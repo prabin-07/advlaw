@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import SearchBar from '../../components/ui/SearchBar'
 import Card from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
+import { analyzeCase } from '../../services/api'
 
 /**
  * NewCase - Page for submitting new legal cases for analysis
@@ -12,32 +13,35 @@ function NewCase() {
   const navigate = useNavigate()
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [analysisResult, setAnalysisResult] = useState(null)
+  const [error, setError] = useState(null)
 
   // Handle case analysis submission
   const handleCaseAnalysis = async (caseDetails) => {
     setIsAnalyzing(true)
     setAnalysisResult(null)
+    setError(null)
 
-    // Simulate AI analysis (replace with actual API call later)
-    setTimeout(() => {
+    try {
+      const result = await analyzeCase(caseDetails)
+      
       setAnalysisResult({
-        summary: 'Based on the provided details, this appears to be a contract law matter.',
-        recommendations: [
-          'Review the original contract terms carefully',
-          'Gather all relevant correspondence',
-          'Consider mediation before litigation'
-        ],
-        confidence: 85,
-        caseType: 'Contract Law',
-        caseId: Date.now() // Mock case ID
+        caseId: result.case_id,
+        summary: result.analysis.summary,
+        applicable_sections: result.analysis.applicable_sections || [],
+        legal_issues: result.analysis.legal_issues || [],
+        loopholes: result.analysis.loopholes || [],
+        recommended_actions: result.analysis.recommended_actions || [],
+        retrieved_sections: result.retrieved_sections,
+        timestamp: result.timestamp
       })
+    } catch (err) {
+      setError(err.message || 'Failed to analyze case. Please try again.')
+    } finally {
       setIsAnalyzing(false)
-    }, 3000)
+    }
   }
 
   const handleSaveCase = () => {
-    // Mock save functionality - in real app, save to backend
-    console.log('Saving case:', analysisResult)
     navigate('/cases', { 
       state: { 
         message: 'Case analysis saved successfully!',
@@ -89,6 +93,18 @@ function NewCase() {
 Example: 'I signed a contract with ABC Company on January 1st for web development services. They delivered the project 3 months late and it doesn't meet the specifications outlined in our agreement. The contract includes a penalty clause for late delivery, but they're refusing to honor it...'"
             buttonText="Analyze Case"
           />
+
+          {/* Error Message */}
+          {error && (
+            <div className="mt-4 p-4 bg-red-900 border border-red-700 rounded-lg">
+              <div className="flex items-center">
+                <svg className="w-5 h-5 text-red-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span className="text-red-300">{error}</span>
+              </div>
+            </div>
+          )}
         </Card>
       </div>
 
@@ -106,38 +122,79 @@ Example: 'I signed a contract with ABC Company on January 1st for web developmen
             </Card.Header>
             
             <Card.Content className="space-y-6">
-              {/* Case Type & Confidence */}
-              <div className="flex items-center justify-between p-4 bg-gray-900 rounded-lg">
-                <div>
-                  <span className="text-sm text-gray-400">Case Type:</span>
-                  <p className="text-lg font-semibold text-white">{analysisResult.caseType}</p>
-                </div>
-                <div className="text-right">
-                  <span className="text-sm text-gray-400">Confidence:</span>
-                  <p className="text-lg font-semibold text-green-400">{analysisResult.confidence}%</p>
-                </div>
-              </div>
-
               {/* Summary */}
               <div>
-                <h4 className="text-lg font-semibold text-white mb-3">Analysis Summary</h4>
+                <h4 className="text-lg font-semibold text-white mb-3">Summary</h4>
                 <p className="text-gray-300 leading-relaxed">{analysisResult.summary}</p>
               </div>
 
-              {/* Recommendations */}
-              <div>
-                <h4 className="text-lg font-semibold text-white mb-3">Recommended Actions</h4>
-                <ul className="space-y-2">
-                  {analysisResult.recommendations.map((rec, index) => (
-                    <li key={index} className="flex items-start">
-                      <svg className="w-5 h-5 text-blue-400 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <span className="text-gray-300">{rec}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              {/* Applicable Sections */}
+              {analysisResult.applicable_sections && analysisResult.applicable_sections.length > 0 && (
+                <div>
+                  <h4 className="text-lg font-semibold text-white mb-3">Applicable Legal Sections</h4>
+                  <ul className="space-y-2">
+                    {analysisResult.applicable_sections.map((section, index) => (
+                      <li key={index} className="flex items-start">
+                        <svg className="w-5 h-5 text-blue-400 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span className="text-gray-300">{section}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Legal Issues */}
+              {analysisResult.legal_issues && analysisResult.legal_issues.length > 0 && (
+                <div>
+                  <h4 className="text-lg font-semibold text-white mb-3">Legal Issues</h4>
+                  <ul className="space-y-2">
+                    {analysisResult.legal_issues.map((issue, index) => (
+                      <li key={index} className="flex items-start">
+                        <svg className="w-5 h-5 text-yellow-400 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-1.964-1.333-2.732 0L3.732 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                        <span className="text-gray-300">{issue}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Loopholes */}
+              {analysisResult.loopholes && analysisResult.loopholes.length > 0 && (
+                <div>
+                  <h4 className="text-lg font-semibold text-white mb-3">Potential Loopholes</h4>
+                  <ul className="space-y-2">
+                    {analysisResult.loopholes.map((loophole, index) => (
+                      <li key={index} className="flex items-start">
+                        <svg className="w-5 h-5 text-purple-400 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span className="text-gray-300">{loophole}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Recommended Actions */}
+              {analysisResult.recommended_actions && analysisResult.recommended_actions.length > 0 && (
+                <div>
+                  <h4 className="text-lg font-semibold text-white mb-3">Recommended Actions</h4>
+                  <ul className="space-y-2">
+                    {analysisResult.recommended_actions.map((action, index) => (
+                      <li key={index} className="flex items-start">
+                        <svg className="w-5 h-5 text-green-400 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                        <span className="text-gray-300">{action}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
               {/* Action Buttons */}
               <div className="flex space-x-4 pt-4">

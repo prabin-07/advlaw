@@ -76,6 +76,8 @@ def get_database():
 db = get_database()
 cases_collection = db["cases"]
 law_sections_collection = db["law_sections"]
+documents_collection = db["documents"]
+users_collection = db["users"]
 
 
 def create_indexes() -> None:
@@ -135,6 +137,14 @@ def verify_collections() -> dict:
             "law_sections": {
                 "exists": "law_sections" in collections,
                 "count": law_sections_collection.count_documents({})
+            },
+            "documents": {
+                "exists": "documents" in collections,
+                "count": documents_collection.count_documents({})
+            },
+            "users": {
+                "exists": "users" in collections,
+                "count": users_collection.count_documents({})
             }
         }
     except Exception as e:

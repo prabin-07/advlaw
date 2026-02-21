@@ -1,51 +1,71 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import SearchBar from '../../components/ui/SearchBar'
 import Card from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
 import lawLogo from '../../assets/law-logo.png'
+import { analyzeCase, listCases } from '../../services/api'
 
-/**
- * Dashboard - Main user dashboard with navigation to key features
- * Serves as the central hub for user activities
- */
 function Dashboard({ user }) {
   const navigate = useNavigate()
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [analysisResult, setAnalysisResult] = useState(null)
-  const [recentCases] = useState([
-    { id: 1, title: 'Contract Dispute Analysis', date: '2025-01-28', status: 'Completed' },
-    { id: 2, title: 'Employment Law Query', date: '2025-01-27', status: 'In Progress' },
-    { id: 3, title: 'Property Rights Case', date: '2025-01-26', status: 'Completed' }
-  ])
+  const [error, setError] = useState(null)
+  const [recentCases, setRecentCases] = useState([])
+  const [isLoadingCases, setIsLoadingCases] = useState(true)
+  const [stats, setStats] = useState({ analyses: 0, documents: 0, reports: 0 })
 
-  // Handle case analysis submission
+  useEffect(() => {
+    fetchRecentCases()
+  }, [])
+
+  const fetchRecentCases = async () => {
+    try {
+      setIsLoadingCases(true)
+      const cases = await listCases(3, 0)
+      setRecentCases(cases)
+      setStats({
+        analyses: cases.length,
+        documents: 0,
+        reports: 0
+      })
+    } catch (err) {
+      setRecentCases([])
+    } finally {
+      setIsLoadingCases(false)
+    }
+  }
+
   const handleCaseAnalysis = async (caseDetails) => {
     setIsAnalyzing(true)
     setAnalysisResult(null)
+    setError(null)
 
-    // Simulate AI analysis (replace with actual API call later)
-    setTimeout(() => {
+    try {
+      const result = await analyzeCase(caseDetails)
+      
       setAnalysisResult({
-        summary: 'Based on the provided details, this appears to be a contract law matter.',
-        recommendations: [
-          'Review the original contract terms carefully',
-          'Gather all relevant correspondence',
-          'Consider mediation before litigation'
-        ],
-        confidence: 85,
-        caseType: 'Contract Law'
+        caseId: result.case_id,
+        summary: result.analysis.summary,
+        applicable_sections: result.analysis.applicable_sections || [],
+        legal_issues: result.analysis.legal_issues || [],
+        loopholes: result.analysis.loopholes || [],
+        recommended_actions: result.analysis.recommended_actions || [],
+        retrieved_sections: result.retrieved_sections,
+        timestamp: result.timestamp
       })
+      
+      fetchRecentCases()
+    } catch (err) {
+      setError(err.message || 'Failed to analyze case. Please try again.')
+    } finally {
       setIsAnalyzing(false)
-    }, 3000)
+    }
   }
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'Completed': return 'bg-green-900 text-green-300'
-      case 'In Progress': return 'bg-yellow-900 text-yellow-300'
-      default: return 'bg-gray-700 text-gray-300'
-    }
+  const formatDate = (timestamp) => {
+    if (!timestamp) return 'N/A'
+    return new Date(timestamp).toLocaleDateString()
   }
 
   return (
@@ -80,6 +100,18 @@ function Dashboard({ user }) {
             isLoading={isAnalyzing}
             placeholder="Describe your legal case in detail. Include relevant facts, parties involved, timeline, and specific legal concerns..."
           />
+
+          {/* Error Message */}
+          {error && (
+            <div className="mt-4 p-4 bg-red-900 border border-red-700 rounded-lg">
+              <div className="flex items-center">
+                <svg className="w-5 h-5 text-red-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span className="text-red-300">{error}</span>
+              </div>
+            </div>
+          )}
         </Card>
       </div>
 
@@ -97,43 +129,84 @@ function Dashboard({ user }) {
             </Card.Header>
             
             <Card.Content className="space-y-6">
-              {/* Case Type & Confidence */}
-              <div className="flex items-center justify-between p-4 bg-gray-900 rounded-lg">
-                <div>
-                  <span className="text-sm text-gray-400">Case Type:</span>
-                  <p className="text-lg font-semibold text-white">{analysisResult.caseType}</p>
-                </div>
-                <div className="text-right">
-                  <span className="text-sm text-gray-400">Confidence:</span>
-                  <p className="text-lg font-semibold text-green-400">{analysisResult.confidence}%</p>
-                </div>
-              </div>
-
               {/* Summary */}
               <div>
                 <h4 className="text-lg font-semibold text-white mb-3">Summary</h4>
                 <p className="text-gray-300 leading-relaxed">{analysisResult.summary}</p>
               </div>
 
-              {/* Recommendations */}
-              <div>
-                <h4 className="text-lg font-semibold text-white mb-3">Recommendations</h4>
-                <ul className="space-y-2">
-                  {analysisResult.recommendations.map((rec, index) => (
-                    <li key={index} className="flex items-start">
-                      <svg className="w-5 h-5 text-blue-400 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <span className="text-gray-300">{rec}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              {/* Applicable Sections */}
+              {analysisResult.applicable_sections && analysisResult.applicable_sections.length > 0 && (
+                <div>
+                  <h4 className="text-lg font-semibold text-white mb-3">Applicable Legal Sections</h4>
+                  <ul className="space-y-2">
+                    {analysisResult.applicable_sections.map((section, index) => (
+                      <li key={index} className="flex items-start">
+                        <svg className="w-5 h-5 text-blue-400 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span className="text-gray-300">{section}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Legal Issues */}
+              {analysisResult.legal_issues && analysisResult.legal_issues.length > 0 && (
+                <div>
+                  <h4 className="text-lg font-semibold text-white mb-3">Legal Issues</h4>
+                  <ul className="space-y-2">
+                    {analysisResult.legal_issues.map((issue, index) => (
+                      <li key={index} className="flex items-start">
+                        <svg className="w-5 h-5 text-yellow-400 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-1.964-1.333-2.732 0L3.732 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                        <span className="text-gray-300">{issue}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Loopholes */}
+              {analysisResult.loopholes && analysisResult.loopholes.length > 0 && (
+                <div>
+                  <h4 className="text-lg font-semibold text-white mb-3">Potential Loopholes</h4>
+                  <ul className="space-y-2">
+                    {analysisResult.loopholes.map((loophole, index) => (
+                      <li key={index} className="flex items-start">
+                        <svg className="w-5 h-5 text-purple-400 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span className="text-gray-300">{loophole}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Recommended Actions */}
+              {analysisResult.recommended_actions && analysisResult.recommended_actions.length > 0 && (
+                <div>
+                  <h4 className="text-lg font-semibold text-white mb-3">Recommended Actions</h4>
+                  <ul className="space-y-2">
+                    {analysisResult.recommended_actions.map((action, index) => (
+                      <li key={index} className="flex items-start">
+                        <svg className="w-5 h-5 text-green-400 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                        <span className="text-gray-300">{action}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
               {/* Action Buttons */}
               <div className="flex space-x-4 pt-4">
                 <Button variant="primary" onClick={() => navigate('/cases')}>
-                  Save Analysis
+                  View All Cases
                 </Button>
                 <Button variant="outline" onClick={() => navigate('/analytics')}>
                   View Analytics
@@ -207,34 +280,40 @@ function Dashboard({ user }) {
             </Card.Header>
             <Card.Content>
               <div className="space-y-4">
-                {recentCases.map((case_) => (
-                  <div key={case_.id} className="flex items-center justify-between p-4 bg-gray-900 rounded-lg hover:bg-gray-700 transition-colors cursor-pointer">
-                    <div>
-                      <h4 className="font-medium text-white">{case_.title}</h4>
-                      <p className="text-sm text-gray-400">{case_.date}</p>
-                    </div>
-                    <div className="flex items-center space-x-3">
-                      <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(case_.status)}`}>
-                        {case_.status}
-                      </span>
-                      <Button size="sm" variant="outline">
-                        View
-                      </Button>
-                    </div>
+                {isLoadingCases ? (
+                  <div className="text-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto"></div>
+                    <p className="text-gray-400 mt-2">Loading cases...</p>
                   </div>
-                ))}
+                ) : recentCases.length > 0 ? (
+                  recentCases.map((case_) => (
+                    <div key={case_._id} className="flex items-center justify-between p-4 bg-gray-900 rounded-lg hover:bg-gray-700 transition-colors cursor-pointer">
+                      <div>
+                        <h4 className="font-medium text-white">{(case_.case_text || '').substring(0, 50)}{(case_.case_text || '').length > 50 ? '...' : ''}</h4>
+                        <p className="text-sm text-gray-400">{formatDate(case_.created_at || case_.timestamp)}</p>
+                      </div>
+                      <div className="flex items-center space-x-3">
+                        <span className="px-2 py-1 text-xs font-semibold rounded-full bg-green-900 text-green-300">
+                          Completed
+                        </span>
+                        <Button size="sm" variant="outline">
+                          View
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-8">
+                    <svg className="w-12 h-12 text-gray-600 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <p className="text-gray-400 mb-4">No cases submitted yet</p>
+                    <Button variant="primary" onClick={() => navigate('/new-case')}>
+                      Submit Your First Case
+                    </Button>
+                  </div>
+                )}
               </div>
-              {recentCases.length === 0 && (
-                <div className="text-center py-8">
-                  <svg className="w-12 h-12 text-gray-600 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  <p className="text-gray-400 mb-4">No cases submitted yet</p>
-                  <Button variant="primary" onClick={() => navigate('/new-case')}>
-                    Submit Your First Case
-                  </Button>
-                </div>
-              )}
             </Card.Content>
           </Card>
         </div>
@@ -277,15 +356,15 @@ function Dashboard({ user }) {
             <Card.Content className="space-y-4">
               <div className="flex justify-between">
                 <span className="text-gray-400">Analyses</span>
-                <span className="text-white font-semibold">12</span>
+                <span className="text-white font-semibold">{stats.analyses}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-400">Documents</span>
-                <span className="text-white font-semibold">8</span>
+                <span className="text-white font-semibold">{stats.documents}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-400">Reports</span>
-                <span className="text-white font-semibold">5</span>
+                <span className="text-white font-semibold">{stats.reports}</span>
               </div>
               <div className="pt-2 border-t border-gray-700">
                 <Button size="sm" variant="outline" className="w-full" onClick={() => navigate('/analytics')}>

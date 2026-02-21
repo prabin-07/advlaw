@@ -1,9 +1,12 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { getProfile } from '../services/api'
 
 function Profile({ user }) {
   const [profileData, setProfileData] = useState({
-    fullName: 'John Doe',
-    email: user?.email || 'user@example.com',
+    fullName: user?.full_name || '',
+    email: user?.email || '',
+    role: user?.role || 'user',
+    joinedDate: user?.created_at ? new Date(user.created_at).toLocaleDateString() : '',
     phone: '+1 (555) 123-4567',
     address: '123 Legal Street, Law City, LC 12345',
     specialization: 'Corporate Law',
@@ -12,6 +15,35 @@ function Profile({ user }) {
   })
 
   const [isEditing, setIsEditing] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        setIsLoading(true)
+        setError(null)
+
+        const data = await getProfile()
+
+        setProfileData(prev => ({
+          ...prev,
+          fullName: data.full_name || prev.fullName || 'User',
+          email: data.email || prev.email,
+          role: data.role || prev.role || 'user',
+          joinedDate: data.created_at
+            ? new Date(data.created_at).toLocaleDateString()
+            : prev.joinedDate
+        }))
+      } catch (err) {
+        setError(err.message || 'Failed to load user data')
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchUserData()
+  }, [])
 
   const handleInputChange = (e) => {
     setProfileData({
@@ -22,8 +54,7 @@ function Profile({ user }) {
 
   const handleSave = () => {
     setIsEditing(false)
-    // Here you would typically save to a backend
-    console.log('Profile updated:', profileData)
+    // Future: save to backend API
   }
 
   return (
@@ -33,6 +64,27 @@ function Profile({ user }) {
         <p className="text-gray-300">Manage your account information and preferences</p>
       </div>
 
+      {/* Loading State */}
+      {isLoading && (
+        <div className="text-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+          <p className="text-gray-400">Loading profile...</p>
+        </div>
+      )}
+
+      {/* Error State */}
+      {error && !isLoading && (
+        <div className="mb-6 p-4 bg-yellow-900 border border-yellow-700 rounded-lg">
+          <div className="flex items-center">
+            <svg className="w-5 h-5 text-yellow-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span className="text-yellow-300">{error}</span>
+          </div>
+        </div>
+      )}
+
+      {!isLoading && (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Profile Picture Section */}
         <div className="lg:col-span-1">
@@ -44,33 +96,14 @@ function Profile({ user }) {
                 </svg>
               </div>
               <h3 className="text-xl font-semibold text-white mb-2">{profileData.fullName}</h3>
-              <p className="text-gray-400 mb-4">{profileData.specialization}</p>
+              <p className="text-gray-400 mb-1">{profileData.specialization}</p>
+              <p className="text-gray-400 mb-1 capitalize">Role: {profileData.role}</p>
+              {profileData.joinedDate && (
+                <p className="text-gray-400 mb-4">Joined: {profileData.joinedDate}</p>
+              )}
               <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors duration-200">
                 Change Photo
               </button>
-            </div>
-          </div>
-
-          {/* Quick Stats */}
-          <div className="bg-gray-800 rounded-lg shadow p-6 border border-gray-700 mt-6">
-            <h4 className="text-lg font-semibold text-white mb-4">Quick Stats</h4>
-            <div className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-gray-400">Cases Handled:</span>
-                <span className="text-white font-medium">47</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">Success Rate:</span>
-                <span className="text-green-400 font-medium">94%</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">Experience:</span>
-                <span className="text-white font-medium">{profileData.experience}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">Member Since:</span>
-                <span className="text-white font-medium">Jan 2023</span>
-              </div>
             </div>
           </div>
         </div>
@@ -118,6 +151,32 @@ function Profile({ user }) {
                     value={profileData.email}
                     onChange={handleInputChange}
                     disabled={!isEditing}
+                    className="w-full px-3 py-2 border border-gray-600 bg-gray-700 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Role
+                  </label>
+                  <input
+                    type="text"
+                    name="role"
+                    value={profileData.role}
+                    disabled
+                    className="w-full px-3 py-2 border border-gray-600 bg-gray-700 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Joined Date
+                  </label>
+                  <input
+                    type="text"
+                    name="joinedDate"
+                    value={profileData.joinedDate}
+                    disabled
                     className="w-full px-3 py-2 border border-gray-600 bg-gray-700 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                 </div>
@@ -226,6 +285,7 @@ function Profile({ user }) {
           </div>
         </div>
       </div>
+      )}
     </div>
   )
 }

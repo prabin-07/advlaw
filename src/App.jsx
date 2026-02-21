@@ -24,7 +24,6 @@ function App() {
   const [user, setUser] = useState(null)
   const [isAdmin, setIsAdmin] = useState(false)
 
-  // Session management - restore session on app load
   useEffect(() => {
     const savedSession = localStorage.getItem('advocate_session')
     if (savedSession) {
@@ -32,26 +31,22 @@ function App() {
         const session = JSON.parse(savedSession)
         const now = new Date().getTime()
         
-        // Check if session is still valid (24 hours)
         if (session.expiresAt && now < session.expiresAt) {
           setUser(session.user)
           setIsAdmin(session.isAdmin)
         } else {
-          // Session expired, clear it
           localStorage.removeItem('advocate_session')
         }
       } catch (error) {
-        console.error('Error restoring session:', error)
         localStorage.removeItem('advocate_session')
       }
     }
   }, [])
 
-  const handleLogin = (email) => {
+  const handleLogin = (userData) => {
     // Check if user is admin (simple check for demo)
     const adminEmails = ['admin@advocate.ai', 'admin@example.com']
-    const userData = { email }
-    const isUserAdmin = adminEmails.includes(email.toLowerCase())
+    const isUserAdmin = adminEmails.includes(userData.email.toLowerCase())
     
     setUser(userData)
     setIsAdmin(isUserAdmin)
@@ -70,6 +65,7 @@ function App() {
     setUser(null)
     setIsAdmin(false)
     localStorage.removeItem('advocate_session')
+    localStorage.removeItem('auth_token')
   }
 
   // Show login page if user is not authenticated
@@ -106,7 +102,6 @@ function App() {
           <Route path="/documents" element={<Documents />} />
           <Route path="/profile" element={<Profile user={user} />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/NewCase" element={<NewCase />} />
         </Routes>
       </Layout>
     </Router>

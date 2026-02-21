@@ -30,6 +30,45 @@ class CaseInput(BaseModel):
         return v.strip()
 
 
+class DocumentInput(BaseModel):
+    """
+    Input model for document upload.
+    """
+    name: str = Field(..., description="Document filename")
+    type: str = Field(..., description="Document type (Contract, Brief, Evidence, Statement)")
+    size: str = Field(..., description="File size (e.g., '2.4 MB')")
+    content: Optional[str] = Field(None, description="Document content (optional)")
+
+
+class UserRegistration(BaseModel):
+    """
+    Input model for user registration.
+    """
+    email: str = Field(..., description="User email address")
+    password: str = Field(..., min_length=6, description="User password (minimum 6 characters)")
+    full_name: str = Field(..., description="User's full name")
+    
+    @validator('email')
+    def validate_email(cls, v):
+        """Basic email validation"""
+        if '@' not in v or '.' not in v:
+            raise ValueError('Invalid email format')
+        return v.lower().strip()
+
+
+class UserLogin(BaseModel):
+    """
+    Input model for user login.
+    """
+    email: str = Field(..., description="User email address")
+    password: str = Field(..., description="User password")
+
+
+class UserStatusUpdate(BaseModel):
+    """Update user active status."""
+    is_active: bool = Field(..., description="Whether the user account is active")
+
+
 class AnalysisResponse(BaseModel):
     """
     Response model for successful case analysis.

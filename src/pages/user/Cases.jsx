@@ -2,114 +2,62 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import Card from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
+import { listCases } from '../../services/api'
 
-/**
- * Cases - Page displaying all user's submitted cases
- * Shows case history with filtering and search capabilities
- */
 function Cases() {
   const navigate = useNavigate()
   const location = useLocation()
   const [cases, setCases] = useState([])
   const [filteredCases, setFilteredCases] = useState([])
   const [searchTerm, setSearchTerm] = useState('')
-  const [statusFilter, setStatusFilter] = useState('all')
   const [showMessage, setShowMessage] = useState(false)
-
-  // Mock cases data
-  const mockCases = [
-    {
-      id: 1,
-      title: 'Contract Dispute with ABC Company',
-      description: 'Web development contract breach - late delivery and non-compliance with specifications',
-      caseType: 'Contract Law',
-      status: 'Completed',
-      confidence: 85,
-      createdDate: '2025-01-28',
-      lastUpdated: '2025-01-28'
-    },
-    {
-      id: 2,
-      title: 'Employment Termination Issue',
-      description: 'Wrongful termination claim - dismissed without proper notice period',
-      caseType: 'Employment Law',
-      status: 'In Progress',
-      confidence: 78,
-      createdDate: '2025-01-27',
-      lastUpdated: '2025-01-28'
-    },
-    {
-      id: 3,
-      title: 'Property Boundary Dispute',
-      description: 'Neighbor encroachment on property line - fence placement issue',
-      caseType: 'Property Law',
-      status: 'Completed',
-      confidence: 92,
-      createdDate: '2025-01-26',
-      lastUpdated: '2025-01-27'
-    },
-    {
-      id: 4,
-      title: 'Intellectual Property Infringement',
-      description: 'Trademark violation by competitor - unauthorized use of brand elements',
-      caseType: 'IP Law',
-      status: 'Pending Review',
-      confidence: 67,
-      createdDate: '2025-01-25',
-      lastUpdated: '2025-01-26'
-    }
-  ]
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
-    // Initialize cases (in real app, fetch from API)
-    setCases(mockCases)
-    setFilteredCases(mockCases)
-
-    // Show success message if navigated from NewCase
+    fetchCases()
+    
     if (location.state?.message) {
       setShowMessage(true)
       setTimeout(() => setShowMessage(false), 5000)
     }
   }, [location.state])
 
-  // Filter cases based on search and status
-  useEffect(() => {
-    let filtered = cases
-
-    if (searchTerm) {
-      filtered = filtered.filter(case_ => 
-        case_.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        case_.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        case_.caseType.toLowerCase().includes(searchTerm.toLowerCase())
-      )
-    }
-
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(case_ => case_.status === statusFilter)
-    }
-
-    setFilteredCases(filtered)
-  }, [searchTerm, statusFilter, cases])
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'Completed': return 'bg-green-900 text-green-300'
-      case 'In Progress': return 'bg-blue-900 text-blue-300'
-      case 'Pending Review': return 'bg-yellow-900 text-yellow-300'
-      default: return 'bg-gray-700 text-gray-300'
+  const fetchCases = async () => {
+    try {
+      setIsLoading(true)
+      setError(null)
+      const data = await listCases(100, 0)
+      setCases(data)
+      setFilteredCases(data)
+    } catch (err) {
+      setError(err.message || 'Failed to load cases')
+      setCases([])
+      setFilteredCases([])
+    } finally {
+      setIsLoading(false)
     }
   }
 
-  const getConfidenceColor = (confidence) => {
-    if (confidence >= 80) return 'text-green-400'
-    if (confidence >= 60) return 'text-yellow-400'
-    return 'text-red-400'
+  useEffect(() => {
+    if (searchTerm) {
+      const filtered = cases.filter(case_ => 
+        (case_.case_text || '').toLowerCase().includes(searchTerm.toLowerCase())
+      )
+      setFilteredCases(filtered)
+    } else {
+      setFilteredCases(cases)
+    }
+  }, [searchTerm, cases])
+
+  const formatDate = (timestamp) => {
+    if (!timestamp) return 'N/A'
+    return new Date(timestamp).toLocaleDateString()
   }
 
   const handleCaseClick = (caseId) => {
-    // Navigate to case details (mock for now)
-    console.log('Viewing case:', caseId)
-    // In real app: navigate(`/cases/${caseId}`)
+    // Future: navigate to case detail page
+    // navigate(`/cases/${caseId}`)
   }
 
   return (
@@ -156,88 +104,83 @@ function Cases() {
       <Card className="mb-8">
         <Card.Content>
           <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0 md:space-x-4">
-            {/* Search */}
             <div className="flex-1">
               <input
                 type="text"
-                placeholder="Search cases by title, description, or type..."
+                placeholder="Search cases by content..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
-
-            {/* Status Filter */}
-            <div className="flex items-center space-x-2">
-              <span className="text-gray-400 text-sm">Filter:</span>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="all">All Status</option>
-                <option value="Completed">Completed</option>
-                <option value="In Progress">In Progress</option>
-                <option value="Pending Review">Pending Review</option>
-              </select>
-            </div>
           </div>
         </Card.Content>
       </Card>
 
+      {/* Loading State */}
+      {isLoading && (
+        <Card className="text-center py-12">
+          <Card.Content>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+            <p className="text-gray-400">Loading cases...</p>
+          </Card.Content>
+        </Card>
+      )}
+
+      {/* Error State */}
+      {error && !isLoading && (
+        <Card className="text-center py-12">
+          <Card.Content>
+            <svg className="w-16 h-16 text-red-600 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <h3 className="text-xl font-semibold text-white mb-2">Failed to Load Cases</h3>
+            <p className="text-gray-400 mb-6">{error}</p>
+            <Button variant="primary" onClick={fetchCases}>
+              Try Again
+            </Button>
+          </Card.Content>
+        </Card>
+      )}
+
       {/* Cases Grid */}
-      {filteredCases.length > 0 ? (
+      {!isLoading && !error && filteredCases.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {filteredCases.map((case_) => (
             <Card 
-              key={case_.id} 
+              key={case_._id} 
               hover={true}
               className="cursor-pointer"
-              onClick={() => handleCaseClick(case_.id)}
+              onClick={() => handleCaseClick(case_._id)}
             >
               <Card.Header>
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <Card.Title className="text-lg mb-2">{case_.title}</Card.Title>
-                    <p className="text-gray-400 text-sm">{case_.description}</p>
+                    <Card.Title className="text-lg mb-2">
+                      {(case_.case_text || '').substring(0, 60)}{(case_.case_text || '').length > 60 ? '...' : ''}
+                    </Card.Title>
+                    <p className="text-gray-400 text-sm">
+                      {(case_.case_text || '').substring(0, 150)}{(case_.case_text || '').length > 150 ? '...' : ''}
+                    </p>
                   </div>
-                  <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(case_.status)} ml-4`}>
-                    {case_.status}
+                  <span className="px-2 py-1 text-xs font-semibold rounded-full bg-green-900 text-green-300 ml-4">
+                    Completed
                   </span>
                 </div>
               </Card.Header>
 
               <Card.Content className="space-y-4">
-                {/* Case Details */}
-                <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center space-x-4">
-                    <div>
-                      <span className="text-gray-400">Type:</span>
-                      <span className="text-white ml-1">{case_.caseType}</span>
-                    </div>
-                    <div>
-                      <span className="text-gray-400">Confidence:</span>
-                      <span className={`ml-1 font-semibold ${getConfidenceColor(case_.confidence)}`}>
-                        {case_.confidence}%
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Dates */}
                 <div className="flex items-center justify-between text-xs text-gray-500">
-                  <span>Created: {case_.createdDate}</span>
-                  <span>Updated: {case_.lastUpdated}</span>
+                  <span>Created: {formatDate(case_.created_at || case_.timestamp)}</span>
                 </div>
 
-                {/* Action Buttons */}
                 <div className="flex space-x-2 pt-2">
                   <Button 
                     size="sm" 
                     variant="primary"
                     onClick={(e) => {
                       e.stopPropagation()
-                      handleCaseClick(case_.id)
+                      handleCaseClick(case_._id)
                     }}
                   >
                     View Details
@@ -247,7 +190,7 @@ function Cases() {
                     variant="outline"
                     onClick={(e) => {
                       e.stopPropagation()
-                      navigate('/analytics', { state: { caseId: case_.id } })
+                      navigate('/analytics', { state: { caseId: case_._id } })
                     }}
                   >
                     Analytics
@@ -257,23 +200,25 @@ function Cases() {
             </Card>
           ))}
         </div>
-      ) : (
-        /* Empty State */
+      )}
+
+      {/* Empty State */}
+      {!isLoading && !error && filteredCases.length === 0 && (
         <Card className="text-center py-12">
           <Card.Content>
             <svg className="w-16 h-16 text-gray-600 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
             <h3 className="text-xl font-semibold text-white mb-2">
-              {searchTerm || statusFilter !== 'all' ? 'No cases match your search' : 'No cases yet'}
+              {searchTerm ? 'No cases match your search' : 'No cases yet'}
             </h3>
             <p className="text-gray-400 mb-6">
-              {searchTerm || statusFilter !== 'all' 
-                ? 'Try adjusting your search terms or filters'
+              {searchTerm 
+                ? 'Try adjusting your search terms'
                 : 'Start by submitting your first legal case for analysis'
               }
             </p>
-            {(!searchTerm && statusFilter === 'all') && (
+            {!searchTerm && (
               <Button 
                 variant="primary" 
                 onClick={() => navigate('/new-case')}
@@ -286,34 +231,26 @@ function Cases() {
       )}
 
       {/* Summary Stats */}
-      {cases.length > 0 && (
+      {!isLoading && !error && cases.length > 0 && (
         <Card className="mt-8">
           <Card.Header>
             <Card.Title>Case Summary</Card.Title>
           </Card.Header>
           <Card.Content>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               <div className="text-center">
                 <div className="text-2xl font-bold text-white">{cases.length}</div>
                 <div className="text-sm text-gray-400">Total Cases</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-green-400">
-                  {cases.filter(c => c.status === 'Completed').length}
-                </div>
+                <div className="text-2xl font-bold text-green-400">{cases.length}</div>
                 <div className="text-sm text-gray-400">Completed</div>
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold text-blue-400">
-                  {cases.filter(c => c.status === 'In Progress').length}
+                  {formatDate(cases[0]?.created_at || cases[0]?.timestamp)}
                 </div>
-                <div className="text-sm text-gray-400">In Progress</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-yellow-400">
-                  {Math.round(cases.reduce((acc, c) => acc + c.confidence, 0) / cases.length)}%
-                </div>
-                <div className="text-sm text-gray-400">Avg Confidence</div>
+                <div className="text-sm text-gray-400">Latest</div>
               </div>
             </div>
           </Card.Content>

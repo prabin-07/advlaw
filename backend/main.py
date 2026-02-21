@@ -3,19 +3,24 @@ FastAPI main application for Law AI Assistant.
 Provides REST API endpoints for legal case analysis using AI.
 """
 
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, status, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from contextlib import asynccontextmanager
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, Any
+from bson import ObjectId
 
-from models import CaseInput, AnalysisResponse, ErrorResponse
+from models import CaseInput, AnalysisResponse, ErrorResponse, DocumentInput, UserRegistration, UserLogin, UserStatusUpdate
 from rag import retrieve_sections, get_section_count
 from groq_client import analyse_case
-from database import cases_collection, create_indexes, close_connection, verify_collections
+from database import cases_collection, documents_collection, users_collection, create_indexes, close_connection, verify_collections
+from config import JWT_SECRET_KEY, JWT_ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
+import bcrypt
+import jwt
 
 # Configure logging
 logging.basicConfig(
@@ -23,6 +28,54 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+
+security_scheme = HTTPBearer()
+
+
+def create_access_token(data: Dict[str, Any], expires_delta: timedelta | None = None) -> str:
+    """
+    Create a signed JWT access token.
+    """
+    to_encode = data.copy()
+    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
+    return encoded_jwt
+
+
+def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security_scheme)):
+    """
+    Dependency that returns the current authenticated user from a JWT bearer token.
+    """
+    token = credentials.credentials
+    try:
+        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
+        user_id: str | None = payload.get("sub")
+        if user_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid authentication credentials",
+            )
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has expired",
+        )
+    except jwt.PyJWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+        )
+
+    user = users_collection.find_one({"_id": ObjectId(user_id)})
+    if not user or not user.get("is_active", True):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User is inactive or does not exist",
+        )
+
+    return user
 
 
 @asynccontextmanager
@@ -355,6 +408,419 @@ async def list_cases(limit: int = 10, skip: int = 0):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
         )
+
+
+@app.post("/documents", tags=["Documents"])
+async def create_document(data: DocumentInput):
+    """
+    Create a new document entry.
+    
+    Args:
+        data: DocumentInput with document details
+    
+    Returns:
+        Created document with ID
+    """
+    try:
+        timestamp = datetime.utcnow()
+        
+        document = {
+            "name": data.name,
+            "type": data.type,
+            "size": data.size,
+            "content": data.content,
+            "status": "Processed",
+            "created_at": timestamp,
+            "updated_at": timestamp
+        }
+        
+        result = documents_collection.insert_one(document)
+        document["_id"] = str(result.inserted_id)
+        document["created_at"] = document["created_at"].isoformat()
+        document["updated_at"] = document["updated_at"].isoformat()
+        
+        return document
+        
+    except Exception as e:
+        logger.error(f"Error creating document: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@app.get("/documents", tags=["Documents"])
+async def list_documents(limit: int = 50, skip: int = 0):
+    """
+    List documents with pagination.
+    
+    Args:
+        limit: Number of documents to return (default: 50, max: 100)
+        skip: Number of documents to skip (default: 0)
+    
+    Returns:
+        List of documents
+    """
+    try:
+        limit = min(limit, 100)
+        
+        documents = list(
+            documents_collection.find()
+            .sort("created_at", -1)
+            .skip(skip)
+            .limit(limit)
+        )
+        
+        for doc in documents:
+            doc["_id"] = str(doc["_id"])
+            if "created_at" in doc and doc["created_at"]:
+                doc["created_at"] = doc["created_at"].isoformat()
+            if "updated_at" in doc and doc["updated_at"]:
+                doc["updated_at"] = doc["updated_at"].isoformat()
+        
+        total_count = documents_collection.count_documents({})
+        
+        return {
+            "documents": documents,
+            "total": total_count,
+            "limit": limit,
+            "skip": skip
+        }
+        
+    except Exception as e:
+        logger.error(f"Error listing documents: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@app.delete("/documents/{document_id}", tags=["Documents"])
+async def delete_document(document_id: str):
+    """
+    Delete a document by ID.
+    
+    Args:
+        document_id: MongoDB ObjectId as string
+    
+    Returns:
+        Success message
+    """
+    try:
+        from bson import ObjectId
+        
+        result = documents_collection.delete_one({"_id": ObjectId(document_id)})
+        
+        if result.deleted_count == 0:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Document with ID {document_id} not found"
+            )
+        
+        return {"message": "Document deleted successfully"}
+        
+    except Exception as e:
+        logger.error(f"Error deleting document: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@app.post("/users/register", tags=["Users"])
+async def register_user(data: UserRegistration):
+    """
+    Register a new user with hashed password.
+    
+    Args:
+        data: UserRegistration with email, password, and full_name
+    
+    Returns:
+        User data without password
+    """
+    try:
+        # Check if user already exists
+        existing_user = users_collection.find_one({"email": data.email})
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User with this email already exists"
+            )
+        
+        # Hash password
+        hashed_password = bcrypt.hashpw(data.password.encode('utf-8'), bcrypt.gensalt())
+        
+        timestamp = datetime.utcnow()
+        
+        user = {
+            "email": data.email,
+            "password_hash": hashed_password,
+            "full_name": data.full_name,
+            "created_at": timestamp,
+            "updated_at": timestamp,
+            "is_active": True,
+            "role": "user",
+        }
+        
+        result = users_collection.insert_one(user)
+
+        # Issue JWT token on successful registration
+        user_id_str = str(result.inserted_id)
+        access_token = create_access_token(
+            data={"sub": user_id_str, "email": data.email}
+        )
+        
+        # Return user data without password
+        return {
+            "user_id": user_id_str,
+            "email": data.email,
+            "full_name": data.full_name,
+            "created_at": timestamp.isoformat(),
+            "role": "user",
+            "access_token": access_token,
+            "token_type": "bearer",
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error registering user: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@app.post("/users/login", tags=["Users"])
+async def login_user(data: UserLogin):
+    """
+    Authenticate user login.
+    
+    Args:
+        data: UserLogin with email and password
+    
+    Returns:
+        User data without password
+    """
+    try:
+        # Find user by email
+        user = users_collection.find_one({"email": data.email})
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid email or password"
+            )
+        
+        # Verify password
+        if not bcrypt.checkpw(data.password.encode('utf-8'), user["password_hash"]):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid email or password"
+            )
+
+        user_id_str = str(user["_id"])
+        access_token = create_access_token(
+            data={"sub": user_id_str, "email": user["email"]}
+        )
+        
+        # Return user data without password
+        return {
+            "user_id": user_id_str,
+            "email": user["email"],
+            "full_name": user["full_name"],
+            "created_at": user["created_at"].isoformat() if user.get("created_at") else None,
+            "role": user.get("role", "user"),
+            "access_token": access_token,
+            "token_type": "bearer",
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error during login: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@app.get("/users/{user_id}", tags=["Users"])
+async def get_user(user_id: str):
+    """
+    Get user by ID.
+    
+    Args:
+        user_id: MongoDB ObjectId as string
+    
+    Returns:
+        User data without password
+    """
+    try:
+        user = users_collection.find_one({"_id": ObjectId(user_id)})
+        
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"User with ID {user_id} not found"
+            )
+        
+        # Return user data without password
+        return {
+            "user_id": str(user["_id"]),
+            "email": user["email"],
+            "full_name": user["full_name"],
+            "created_at": user["created_at"].isoformat() if user.get("created_at") else None,
+            "role": user.get("role", "user"),
+        }
+        
+    except Exception as e:
+        logger.error(f"Error retrieving user: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@app.get("/users", tags=["Users"])
+async def list_users(limit: int = 100, skip: int = 0):
+    """
+    List all users (admin use).
+    
+    Args:
+        limit: Max users to return (default: 100)
+        skip: Number to skip for pagination
+    
+    Returns:
+        List of users without password hashes
+    """
+    try:
+        limit = min(limit, 100)
+        users = list(
+            users_collection.find()
+            .sort("created_at", -1)
+            .skip(skip)
+            .limit(limit)
+        )
+        
+        result = []
+        for user in users:
+            user_id_str = str(user["_id"])
+            result.append({
+                "user_id": user_id_str,
+                "id": user_id_str,
+                "full_name": user.get("full_name", ""),
+                "name": user.get("full_name", ""),
+                "email": user["email"],
+                "role": user.get("role", "user").capitalize(),
+                "is_active": user.get("is_active", True),
+                "created_at": user["created_at"].isoformat() if user.get("created_at") else None,
+                "status": "Active" if user.get("is_active", True) else "Disabled",
+                "casesCount": 0,  # Cases don't have user_id association yet
+                "joinDate": user["created_at"].strftime("%Y-%m-%d") if user.get("created_at") else "N/A",
+                "lastLogin": "N/A",  # Not tracked
+                "subscription": "Basic",
+            })
+        
+        total = users_collection.count_documents({})
+        return {
+            "users": result,
+            "total": total,
+            "limit": limit,
+            "skip": skip
+        }
+    except Exception as e:
+        logger.error(f"Error listing users: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@app.patch("/users/{user_id}", tags=["Users"])
+async def update_user_status(user_id: str, data: UserStatusUpdate):
+    """
+    Update user active status (admin use).
+    """
+    try:
+        result = users_collection.update_one(
+            {"_id": ObjectId(user_id)},
+            {"$set": {"is_active": data.is_active, "updated_at": datetime.utcnow()}}
+        )
+        if result.matched_count == 0:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"User {user_id} not found"
+            )
+        return {"message": "User updated", "is_active": data.is_active}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating user: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@app.delete("/users/{user_id}", tags=["Users"])
+async def delete_user(user_id: str):
+    """
+    Delete a user by ID (admin use).
+    """
+    try:
+        result = users_collection.delete_one({"_id": ObjectId(user_id)})
+        if result.deleted_count == 0:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"User {user_id} not found"
+            )
+        return {"message": "User deleted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting user: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@app.delete("/cases/{case_id}", tags=["Cases"])
+async def delete_case(case_id: str):
+    """
+    Delete a case by ID (admin use).
+    """
+    try:
+        result = cases_collection.delete_one({"_id": ObjectId(case_id)})
+        if result.deleted_count == 0:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Case {case_id} not found"
+            )
+        return {"message": "Case deleted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting case: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@app.get("/profile", tags=["Users"])
+async def get_profile(current_user: dict = Depends(get_current_user)):
+    """
+    Get the current authenticated user's profile.
+    Protected endpoint using JWT bearer authentication.
+    """
+    return {
+        "user_id": str(current_user["_id"]),
+        "email": current_user["email"],
+        "full_name": current_user.get("full_name"),
+        "created_at": current_user["created_at"].isoformat() if current_user.get("created_at") else None,
+        "role": current_user.get("role", "user"),
+    }
 
 
 # Error handlers

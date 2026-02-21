@@ -1,18 +1,33 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
+import { listDocuments, createDocument, deleteDocument } from '../services/api'
 
 function Documents() {
-  const [documents, setDocuments] = useState([
-    { id: 1, name: 'Contract_Agreement.pdf', type: 'Contract', size: '2.4 MB', date: '2025-01-15', status: 'Processed' },
-    { id: 2, name: 'Legal_Brief.docx', type: 'Brief', size: '1.8 MB', date: '2025-01-14', status: 'Processing' },
-    { id: 3, name: 'Evidence_Photos.zip', type: 'Evidence', size: '15.2 MB', date: '2025-01-12', status: 'Processed' },
-    { id: 4, name: 'Client_Statement.pdf', type: 'Statement', size: '0.9 MB', date: '2025-01-10', status: 'Processed' }
-  ])
-
+  const [documents, setDocuments] = useState([])
   const [searchTerm, setSearchTerm] = useState('')
   const [typeFilter, setTypeFilter] = useState('All')
   const [isDragging, setIsDragging] = useState(false)
   const [uploadProgress, setUploadProgress] = useState({})
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState(null)
   const fileInputRef = useRef(null)
+
+  useEffect(() => {
+    fetchDocuments()
+  }, [])
+
+  const fetchDocuments = async () => {
+    try {
+      setIsLoading(true)
+      setError(null)
+      const docs = await listDocuments(100, 0)
+      setDocuments(docs)
+    } catch (err) {
+      setError(err.message || 'Failed to load documents')
+      setDocuments([])
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -52,19 +67,18 @@ function Documents() {
     }
   }
 
-  const handleFileUpload = (files) => {
-    Array.from(files).forEach(file => {
+  const handleFileUpload = async (files) => {
+    Array.from(files).forEach(async (file) => {
       const fileId = Date.now() + Math.random()
       const newDoc = {
-        id: fileId,
         name: file.name,
         type: getFileType(file.name),
         size: formatFileSize(file.size),
-        date: new Date().toISOString().split('T')[0],
         status: 'Processing'
       }
 
-      setDocuments(prev => [...prev, newDoc])
+      // Add to local state immediately for UI feedback
+      setDocuments(prev => [...prev, { ...newDoc, _id: fileId }])
       setUploadProgress(prev => ({ ...prev, [fileId]: 0 }))
 
       // Simulate upload progress
@@ -73,14 +87,37 @@ function Documents() {
           const currentProgress = prev[fileId] || 0
           if (currentProgress >= 100) {
             clearInterval(interval)
-            setDocuments(docs => docs.map(doc => 
-              doc.id === fileId ? { ...doc, status: 'Processed' } : doc
-            ))
             return prev
           }
           return { ...prev, [fileId]: currentProgress + 10 }
         })
       }, 200)
+
+      try {
+        // Create document in backend
+        const createdDoc = await createDocument(newDoc)
+        
+        // Update local state with backend response
+        setDocuments(prev => prev.map(doc => 
+          doc._id === fileId ? { ...createdDoc, status: 'Processed' } : doc
+        ))
+        
+        // Clear progress
+        setTimeout(() => {
+          setUploadProgress(prev => {
+            const newProgress = { ...prev }
+            delete newProgress[fileId]
+            return newProgress
+          })
+        }, 1000)
+        
+      } catch (error) {
+        // Handle upload error
+        setDocuments(prev => prev.map(doc => 
+          doc._id === fileId ? { ...doc, status: 'Failed' } : doc
+        ))
+        clearInterval(interval)
+      }
     })
   }
 
@@ -124,14 +161,19 @@ function Documents() {
     }
   }
 
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
     if (window.confirm('Are you sure you want to delete this document?')) {
-      setDocuments(documents.filter(doc => doc.id !== id))
-      setUploadProgress(prev => {
-        const newProgress = { ...prev }
-        delete newProgress[id]
-        return newProgress
-      })
+      try {
+        await deleteDocument(id)
+        setDocuments(documents.filter(doc => doc._id !== id))
+        setUploadProgress(prev => {
+          const newProgress = { ...prev }
+          delete newProgress[id]
+          return newProgress
+        })
+      } catch (error) {
+        alert('Failed to delete document: ' + error.message)
+      }
     }
   }
 
@@ -141,6 +183,11 @@ function Documents() {
     return matchesSearch && matchesType
   })
 
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A'
+    return new Date(dateString).toLocaleDateString()
+  }
+
   return (
     <div className="max-w-7xl mx-auto p-8">
       <div className="mb-8">
@@ -148,7 +195,29 @@ function Documents() {
         <p className="text-gray-300">Upload, analyze, and manage your legal documents</p>
       </div>
 
-      {/* Search and Filter Bar */}
+      {/* Loading State */}
+      {isLoading && (
+        <div className="text-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+          <p className="text-gray-400">Loading documents...</p>
+        </div>
+      )}
+
+      {/* Error State */}
+      {error && !isLoading && (
+        <div className="mb-6 p-4 bg-red-900 border border-red-700 rounded-lg">
+          <div className="flex items-center">
+            <svg className="w-5 h-5 text-red-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span className="text-red-300">{error}</span>
+          </div>
+        </div>
+      )}
+
+      {!isLoading && (
+        <>
+          {/* Search and Filter Bar */}
       <div className="mb-6 flex flex-wrap gap-4 items-center">
         <div className="flex-1 min-w-[300px]">
           <input
@@ -210,7 +279,7 @@ function Documents() {
       {/* Documents Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
         {filteredDocuments.map((doc) => (
-          <div key={doc.id} className="bg-gray-800 rounded-lg shadow p-6 border border-gray-700 hover:border-gray-600 transition-colors">
+          <div key={doc._id} className="bg-gray-800 rounded-lg shadow p-6 border border-gray-700 hover:border-gray-600 transition-colors">
             <div className="flex items-start justify-between mb-4">
               <div className="flex items-center">
                 {getFileIcon(doc.type)}
@@ -225,16 +294,16 @@ function Documents() {
             </div>
             
             {/* Upload Progress Bar */}
-            {uploadProgress[doc.id] !== undefined && uploadProgress[doc.id] < 100 && (
+            {uploadProgress[doc._id] !== undefined && uploadProgress[doc._id] < 100 && (
               <div className="mb-4">
                 <div className="flex justify-between text-sm text-gray-400 mb-1">
                   <span>Uploading...</span>
-                  <span>{uploadProgress[doc.id]}%</span>
+                  <span>{uploadProgress[doc._id]}%</span>
                 </div>
                 <div className="w-full bg-gray-700 rounded-full h-2">
                   <div 
                     className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${uploadProgress[doc.id]}%` }}
+                    style={{ width: `${uploadProgress[doc._id]}%` }}
                   ></div>
                 </div>
               </div>
@@ -247,7 +316,7 @@ function Documents() {
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-400">Date:</span>
-                <span className="text-white">{doc.date}</span>
+                <span className="text-white">{formatDate(doc.created_at)}</span>
               </div>
             </div>
 
@@ -259,7 +328,7 @@ function Documents() {
                 Download
               </button>
               <button 
-                onClick={() => handleDelete(doc.id)}
+                onClick={() => handleDelete(doc._id)}
                 className="bg-red-600 hover:bg-red-700 text-white py-2 px-3 rounded text-sm transition-colors duration-200"
               >
                 Delete
@@ -341,8 +410,8 @@ function Documents() {
         <div className="bg-gray-800 rounded-lg shadow p-6 border border-gray-700">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-300 mb-1">Total Size</p>
-              <p className="text-3xl font-bold text-white">20.1 MB</p>
+              <p className="text-sm text-gray-300 mb-1">This Month</p>
+              <p className="text-3xl font-bold text-white">{documents.length}</p>
             </div>
             <div className="bg-purple-900 rounded-full p-3">
               <svg className="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -352,6 +421,8 @@ function Documents() {
           </div>
         </div>
       </div>
+      </>
+      )}
     </div>
   )
 }
