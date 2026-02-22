@@ -193,6 +193,20 @@ def validate_analysis_structure(analysis: Dict[str, Any]) -> Dict[str, Any]:
         elif field != "summary" and not isinstance(analysis[field], list):
             logger.warning(f"Field '{field}' is not a list, converting")
             analysis[field] = []
+        
+        # Additional sanitization for applicable_sections to handle objects if they appear
+        if field == "applicable_sections" and isinstance(analysis[field], list):
+            sanitized_sections = []
+            for item in analysis[field]:
+                if isinstance(item, dict):
+                    # If it's an object with section/description, flatten it to a string for simpler rendering
+                    # (Though the frontend is now robust, this keeps stored data clean)
+                    sec = item.get("section") or item.get("title") or "Unknown"
+                    desc = item.get("description") or ""
+                    sanitized_sections.append(f"{sec}: {desc}" if desc else sec)
+                else:
+                    sanitized_sections.append(str(item))
+            analysis[field] = sanitized_sections
     
     return analysis
 
@@ -336,8 +350,6 @@ async def get_case(case_id: str):
         Case document with analysis
     """
     try:
-        from bson import ObjectId
-        
         case = cases_collection.find_one({"_id": ObjectId(case_id)})
         
         if not case:
@@ -346,15 +358,15 @@ async def get_case(case_id: str):
                 detail=f"Case with ID {case_id} not found"
             )
         
-        # Convert ObjectId to string for JSON serialization
         case["_id"] = str(case["_id"])
         
-        # Convert datetime to ISO format
         if "created_at" in case and case["created_at"]:
             case["created_at"] = case["created_at"].isoformat()
         
         return case
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error retrieving case: {e}")
         raise HTTPException(
@@ -376,10 +388,8 @@ async def list_cases(limit: int = 10, skip: int = 0):
         List of cases with metadata
     """
     try:
-        # Limit maximum results
         limit = min(limit, 100)
         
-        # Query cases sorted by created_at descending
         cases = list(
             cases_collection.find()
             .sort("created_at", -1)
