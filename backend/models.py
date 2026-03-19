@@ -64,6 +64,17 @@ class UserLogin(BaseModel):
     password: str = Field(..., description="User password")
 
 
+class UserProfileUpdate(BaseModel):
+    """
+    Input model for updating user profile.
+    """
+    full_name: Optional[str] = Field(None, description="User's full name")
+    phone: Optional[str] = Field(None, description="Phone number")
+    address: Optional[str] = Field(None, description="Address")
+    specialization: Optional[str] = Field(None, description="Legal specialization")
+    bio: Optional[str] = Field(None, description="User bio")
+
+
 class UserStatusUpdate(BaseModel):
     """Update user active status."""
     is_active: bool = Field(..., description="Whether the user account is active")

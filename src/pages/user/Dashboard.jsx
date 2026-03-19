@@ -95,7 +95,7 @@ function Dashboard({ user }) {
             </p>
           </Card.Header>
           
-          <SearchBar 
+          <SearchBar
             onSubmit={handleCaseAnalysis}
             isLoading={isAnalyzing}
             placeholder="Describe your legal case in detail. Include relevant facts, parties involved, timeline, and specific legal concerns..."
@@ -233,7 +233,7 @@ function Dashboard({ user }) {
             </div>
             <h3 className="text-xl font-semibold text-white mb-2">New Case</h3>
             <p className="text-gray-400 mb-4">Submit a new legal case for AI analysis</p>
-            <Button variant="primary" className="w-full">
+            <Button variant="primary" className="w-full" onClick={() => navigate('/new-case')}>
               Start Analysis
             </Button>
           </Card.Content>
@@ -248,7 +248,7 @@ function Dashboard({ user }) {
             </div>
             <h3 className="text-xl font-semibold text-white mb-2">View Cases</h3>
             <p className="text-gray-400 mb-4">Browse your submitted cases and results</p>
-            <Button variant="secondary" className="w-full">
+            <Button variant="secondary" className="w-full" onClick={() => navigate('/cases')}>
               Browse Cases
             </Button>
           </Card.Content>
@@ -263,7 +263,7 @@ function Dashboard({ user }) {
             </div>
             <h3 className="text-xl font-semibold text-white mb-2">Case Analytics</h3>
             <p className="text-gray-400 mb-4">View insights and statistics</p>
-            <Button variant="outline" className="w-full">
+            <Button variant="outline" className="w-full" onClick={() => navigate('/analytics')}>
               View Analytics
             </Button>
           </Card.Content>
@@ -334,7 +334,7 @@ function Dashboard({ user }) {
                 Upload Documents
               </Button>
               
-              <Button variant="secondary" className="w-full justify-start">
+              <Button variant="secondary" className="w-full justify-start" onClick={() => navigate('/legal-resources')}>
                 <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                 </svg>

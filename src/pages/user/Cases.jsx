@@ -176,24 +176,12 @@ function Cases() {
 
                 <div className="flex space-x-2 pt-2">
                   <Button 
-                    size="sm" 
-                    variant="primary"
-                    onClick={(e) => {
+                    size="sm" variant="primary" onClick={(e) => {
                       e.stopPropagation()
-                      handleCaseClick(case_._id)
+                      navigate(`/cases/${case_._id}`)
                     }}
                   >
                     View Details
-                  </Button>
-                  <Button 
-                    size="sm" 
-                    variant="outline"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      navigate('/analytics', { state: { caseId: case_._id } })
-                    }}
-                  >
-                    Analytics
                   </Button>
                 </div>
               </Card.Content>

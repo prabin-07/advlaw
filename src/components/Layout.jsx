@@ -42,7 +42,7 @@ function Layout({ user, onLogout, children }) {
   return (
     <div className="min-h-screen bg-black flex">
       {/* Top Navbar */}
-<div className="fixed top-0 left-0 right-0 z-50 h-16 bg-gray-900 border-b border-gray-700">
+<div className="fixed top-0 left-0 right-0 z-50 h-16 bg-black border-b border-gray-700">
   <div className="flex items-center h-full px-6">
     
     {/* Logo */}

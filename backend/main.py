@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 from typing import Dict, Any
 from bson import ObjectId
 
-from models import CaseInput, AnalysisResponse, ErrorResponse, DocumentInput, UserRegistration, UserLogin, UserStatusUpdate
+from models import CaseInput, AnalysisResponse, ErrorResponse, DocumentInput, UserRegistration, UserLogin, UserProfileUpdate, UserStatusUpdate
 from rag import retrieve_sections, get_section_count
 from groq_client import analyse_case
 from database import cases_collection, documents_collection, users_collection, create_indexes, close_connection, verify_collections
@@ -566,6 +566,10 @@ async def register_user(data: UserRegistration):
             "email": data.email,
             "password_hash": hashed_password,
             "full_name": data.full_name,
+            "phone": None,
+            "address": None,
+            "specialization": None,
+            "bio": None,
             "created_at": timestamp,
             "updated_at": timestamp,
             "is_active": True,
@@ -679,12 +683,92 @@ async def get_user(user_id: str):
             "user_id": str(user["_id"]),
             "email": user["email"],
             "full_name": user["full_name"],
+            "phone": user.get("phone"),
+            "address": user.get("address"),
+            "specialization": user.get("specialization"),
+            "bio": user.get("bio"),
             "created_at": user["created_at"].isoformat() if user.get("created_at") else None,
             "role": user.get("role", "user"),
         }
         
     except Exception as e:
         logger.error(f"Error retrieving user: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@app.put("/users/{user_id}", tags=["Users"])
+async def update_user_profile(user_id: str, data: UserProfileUpdate):
+    """
+    Update user profile information.
+    
+    Args:
+        user_id: MongoDB ObjectId as string
+        data: UserProfileUpdate with optional profile fields
+    
+    Returns:
+        Updated user data without password
+    """
+    try:
+        from bson import ObjectId
+        
+        # Check if user exists
+        user = users_collection.find_one({"_id": ObjectId(user_id)})
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"User with ID {user_id} not found"
+            )
+        
+        # Build update dict with only provided fields
+        update_data = {}
+        if data.full_name is not None:
+            update_data["full_name"] = data.full_name
+        if data.phone is not None:
+            update_data["phone"] = data.phone
+        if data.address is not None:
+            update_data["address"] = data.address
+        if data.specialization is not None:
+            update_data["specialization"] = data.specialization
+        if data.bio is not None:
+            update_data["bio"] = data.bio
+        
+        if not update_data:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No fields to update"
+            )
+        
+        # Add updated timestamp
+        update_data["updated_at"] = datetime.utcnow()
+        
+        # Update user
+        users_collection.update_one(
+            {"_id": ObjectId(user_id)},
+            {"$set": update_data}
+        )
+        
+        # Fetch and return updated user
+        updated_user = users_collection.find_one({"_id": ObjectId(user_id)})
+        
+        return {
+            "user_id": str(updated_user["_id"]),
+            "email": updated_user["email"],
+            "full_name": updated_user["full_name"],
+            "phone": updated_user.get("phone"),
+            "address": updated_user.get("address"),
+            "specialization": updated_user.get("specialization"),
+            "bio": updated_user.get("bio"),
+            "created_at": updated_user["created_at"].isoformat() if updated_user.get("created_at") else None,
+            "role": updated_user.get("role", "user"),
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating user profile: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)

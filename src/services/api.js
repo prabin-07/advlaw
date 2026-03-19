@@ -173,6 +173,27 @@ export const getUser = async (userId) => {
   }
 };
 
+export const updateUserProfile = async (userId, profileData) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(profileData),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to update profile');
+    }
+
+    return await response.json();
+  } catch (error) {
+    throw error;
+  }
+};
+
 export const updateUserStatus = async (userId, isActive) => {
   try {
     const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
