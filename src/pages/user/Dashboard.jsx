@@ -4,7 +4,7 @@ import SearchBar from '../../components/ui/SearchBar'
 import Card from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
 import lawLogo from '../../assets/law-logo.png'
-import { analyzeCase, listCases } from '../../services/api'
+import { analyzeCase, listCases, listDocuments } from '../../services/api'
 
 function Dashboard({ user }) {
   const navigate = useNavigate()
@@ -13,27 +13,46 @@ function Dashboard({ user }) {
   const [error, setError] = useState(null)
   const [recentCases, setRecentCases] = useState([])
   const [isLoadingCases, setIsLoadingCases] = useState(true)
-  const [stats, setStats] = useState({ analyses: 0, documents: 0, reports: 0 })
+  const [selectedCase, setSelectedCase] = useState(null)
+  const [stats, setStats] = useState({ analyses: 0, documents: 0 })
 
   useEffect(() => {
-    fetchRecentCases()
+    fetchDashboardData()
   }, [])
 
-  const fetchRecentCases = async () => {
+  const fetchDashboardData = async () => {
     try {
       setIsLoadingCases(true)
-      const cases = await listCases(3, 0)
-      setRecentCases(cases)
+      const [allCases, docs] = await Promise.allSettled([
+        listCases(100, 0),
+        listDocuments(100, 0),
+      ])
+      const cases = allCases.status === 'fulfilled' ? allCases.value : []
+      const documents = docs.status === 'fulfilled' ? docs.value : []
+
+      // This month's cases
+      const now = new Date()
+      const thisMonthCases = cases.filter(c => {
+        const d = new Date(c.created_at)
+        return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
+      })
+
+      setRecentCases(cases.slice(0, 3))
       setStats({
-        analyses: cases.length,
-        documents: 0,
-        reports: 0
+        analyses: thisMonthCases.length,
+        documents: documents.length,
       })
     } catch (err) {
       setRecentCases([])
     } finally {
       setIsLoadingCases(false)
     }
+  }
+
+  // Derive status from analysis presence
+  const caseStatus = (case_) => {
+    const a = case_.analysis
+    return a && typeof a === 'object' && Object.keys(a).length > 0 ? 'Completed' : 'Pending'
   }
 
   const handleCaseAnalysis = async (caseDetails) => {
@@ -55,7 +74,7 @@ function Dashboard({ user }) {
         timestamp: result.timestamp
       })
       
-      fetchRecentCases()
+      fetchDashboardData()
     } catch (err) {
       setError(err.message || 'Failed to analyze case. Please try again.')
     } finally {
@@ -288,22 +307,33 @@ function Dashboard({ user }) {
                     <p className="text-gray-400 mt-2">Loading cases...</p>
                   </div>
                 ) : recentCases.length > 0 ? (
-                  recentCases.map((case_) => (
-                    <div key={case_._id} className="flex items-center justify-between p-4 bg-gray-900 rounded-lg hover:bg-gray-700 transition-colors cursor-pointer">
-                      <div>
-                        <h4 className="font-medium text-white">{(case_.case_text || '').substring(0, 50)}{(case_.case_text || '').length > 50 ? '...' : ''}</h4>
-                        <p className="text-sm text-gray-400">{formatDate(case_.created_at || case_.timestamp)}</p>
+                  recentCases.map((case_) => {
+                    const status = caseStatus(case_)
+                    return (
+                      <div
+                        key={case_._id}
+                        className="flex items-center justify-between p-4 bg-gray-900 rounded-lg hover:bg-gray-700 transition-colors cursor-pointer"
+                        onClick={() => setSelectedCase(case_)}
+                      >
+                        <div className="min-w-0 flex-1 pr-3">
+                          <h4 className="font-medium text-white truncate">
+                            {(case_.case_text || '').substring(0, 50)}{(case_.case_text || '').length > 50 ? '…' : ''}
+                          </h4>
+                          <p className="text-sm text-gray-400">{formatDate(case_.created_at || case_.timestamp)}</p>
+                        </div>
+                        <div className="flex items-center space-x-3 shrink-0">
+                          <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                            status === 'Completed' ? 'bg-green-900 text-green-300' : 'bg-yellow-900 text-yellow-300'
+                          }`}>
+                            {status}
+                          </span>
+                          <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); setSelectedCase(case_) }}>
+                            View
+                          </Button>
+                        </div>
                       </div>
-                      <div className="flex items-center space-x-3">
-                        <span className="px-2 py-1 text-xs font-semibold rounded-full bg-green-900 text-green-300">
-                          Completed
-                        </span>
-                        <Button size="sm" variant="outline">
-                          View
-                        </Button>
-                      </div>
-                    </div>
-                  ))
+                    )
+                  })
                 ) : (
                   <div className="text-center py-8">
                     <svg className="w-12 h-12 text-gray-600 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -334,11 +364,11 @@ function Dashboard({ user }) {
                 Upload Documents
               </Button>
               
-              <Button variant="secondary" className="w-full justify-start" onClick={() => navigate('/legal-resources')}>
+              <Button variant="secondary" className="w-full justify-start" onClick={() => navigate('/documents')}>
                 <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                 </svg>
-                Legal Resources
+                My Documents
               </Button>
               
               <Button variant="outline" className="w-full justify-start" onClick={() => navigate('/profile')}>
@@ -364,10 +394,6 @@ function Dashboard({ user }) {
                 <span className="text-gray-400">Documents</span>
                 <span className="text-white font-semibold">{stats.documents}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">Reports</span>
-                <span className="text-white font-semibold">{stats.reports}</span>
-              </div>
               <div className="pt-2 border-t border-gray-700">
                 <Button size="sm" variant="outline" className="w-full" onClick={() => navigate('/analytics')}>
                   View Detailed Stats
@@ -377,6 +403,95 @@ function Dashboard({ user }) {
           </Card>
         </div>
       </div>
+
+      {/* Case Detail Modal */}
+      {selectedCase && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="bg-gray-800 border border-gray-700 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div className="flex items-center justify-between p-6 border-b border-gray-700">
+              <div>
+                <h2 className="text-white font-semibold text-lg">Case Details</h2>
+                <p className="text-gray-400 text-xs mt-0.5">
+                  {selectedCase.created_at ? new Date(selectedCase.created_at).toLocaleString() : 'N/A'}
+                </p>
+              </div>
+              <button onClick={() => setSelectedCase(null)} className="text-gray-400 hover:text-white">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-6 space-y-5">
+              <div>
+                <h3 className="text-gray-400 text-xs uppercase tracking-wider mb-2">Case Description</h3>
+                <p className="text-gray-200 text-sm leading-relaxed bg-gray-900 rounded-lg p-3 whitespace-pre-wrap">
+                  {selectedCase.case_text}
+                </p>
+              </div>
+              {selectedCase.analysis && Object.keys(selectedCase.analysis).length > 0 ? (
+                <>
+                  {selectedCase.analysis.summary && (
+                    <div>
+                      <h3 className="text-gray-400 text-xs uppercase tracking-wider mb-2">Summary</h3>
+                      <p className="text-gray-200 text-sm leading-relaxed">{selectedCase.analysis.summary}</p>
+                    </div>
+                  )}
+                  {selectedCase.analysis.legal_issues?.length > 0 && (
+                    <div>
+                      <h3 className="text-gray-400 text-xs uppercase tracking-wider mb-2">Legal Issues</h3>
+                      <ul className="space-y-1">
+                        {selectedCase.analysis.legal_issues.map((item, i) => (
+                          <li key={i} className="text-sm px-3 py-1.5 rounded-md bg-red-900/40 text-red-300">{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {selectedCase.analysis.applicable_sections?.length > 0 && (
+                    <div>
+                      <h3 className="text-gray-400 text-xs uppercase tracking-wider mb-2">Applicable Sections</h3>
+                      <ul className="space-y-1">
+                        {selectedCase.analysis.applicable_sections.map((item, i) => (
+                          <li key={i} className="text-sm px-3 py-1.5 rounded-md bg-blue-900/40 text-blue-300">{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {selectedCase.analysis.loopholes?.length > 0 && (
+                    <div>
+                      <h3 className="text-gray-400 text-xs uppercase tracking-wider mb-2">Loopholes</h3>
+                      <ul className="space-y-1">
+                        {selectedCase.analysis.loopholes.map((item, i) => (
+                          <li key={i} className="text-sm px-3 py-1.5 rounded-md bg-yellow-900/40 text-yellow-300">{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {selectedCase.analysis.recommended_actions?.length > 0 && (
+                    <div>
+                      <h3 className="text-gray-400 text-xs uppercase tracking-wider mb-2">Recommended Actions</h3>
+                      <ul className="space-y-1">
+                        {selectedCase.analysis.recommended_actions.map((item, i) => (
+                          <li key={i} className="text-sm px-3 py-1.5 rounded-md bg-green-900/40 text-green-300">{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <p className="text-gray-500 text-sm text-center py-4">No analysis available for this case.</p>
+              )}
+            </div>
+            <div className="flex justify-between items-center p-6 border-t border-gray-700">
+              <Button variant="primary" size="sm" onClick={() => { setSelectedCase(null); navigate('/cases') }}>
+                View All Cases
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setSelectedCase(null)}>
+                Close
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
