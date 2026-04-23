@@ -221,7 +221,7 @@ def validate_analysis_structure(analysis: Dict[str, Any]) -> Dict[str, Any]:
     },
     tags=["Analysis"]
 )
-async def analyze_case(data: CaseInput):
+async def analyze_case(data: CaseInput, current_user: dict = Depends(get_current_user)):
     """
     Analyze a legal case using AI and RAG.
     
@@ -294,6 +294,7 @@ async def analyze_case(data: CaseInput):
         timestamp = datetime.utcnow()
         
         case_document = {
+            "user_id": str(current_user["_id"]),
             "case_text": data.case_text,
             "retrieved_sections": retrieved_sections,
             "analysis": {
@@ -376,34 +377,28 @@ async def get_case(case_id: str):
 
 
 @app.get("/cases", tags=["Cases"])
-async def list_cases(limit: int = 10, skip: int = 0):
+async def list_cases(limit: int = 10, skip: int = 0, current_user: dict = Depends(get_current_user)):
     """
-    List recent cases with pagination.
-    
-    Args:
-        limit: Number of cases to return (default: 10, max: 100)
-        skip: Number of cases to skip (default: 0)
-    
-    Returns:
-        List of cases with metadata
+    List recent cases for the authenticated user with pagination.
     """
     try:
         limit = min(limit, 100)
-        
+        user_id = str(current_user["_id"])
+        query = {"user_id": user_id}
+
         cases = list(
-            cases_collection.find()
+            cases_collection.find(query)
             .sort("created_at", -1)
             .skip(skip)
             .limit(limit)
         )
-        
-        # Convert ObjectId and datetime to strings
+
         for case in cases:
             case["_id"] = str(case["_id"])
             if "created_at" in case and case["created_at"]:
                 case["created_at"] = case["created_at"].isoformat()
-        
-        total_count = cases_collection.count_documents({})
+
+        total_count = cases_collection.count_documents(query)
         
         return {
             "cases": cases,

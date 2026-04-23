@@ -2,10 +2,12 @@ const API_BASE_URL = 'http://localhost:8000';
 
 export const analyzeCase = async (caseText) => {
   try {
+    const token = localStorage.getItem('auth_token');
     const response = await fetch(`${API_BASE_URL}/analyze`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...(token && { 'Authorization': `Bearer ${token}` }),
       },
       body: JSON.stringify({ case_text: caseText }),
     });
@@ -23,7 +25,12 @@ export const analyzeCase = async (caseText) => {
 
 export const listCases = async (limit = 100, skip = 0) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/cases?limit=${limit}&skip=${skip}`);
+    const token = localStorage.getItem('auth_token');
+    const response = await fetch(`${API_BASE_URL}/cases?limit=${limit}&skip=${skip}`, {
+      headers: {
+        ...(token && { 'Authorization': `Bearer ${token}` }),
+      },
+    });
     
     if (!response.ok) {
       throw new Error('Failed to fetch cases');

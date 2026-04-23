@@ -207,26 +207,7 @@ function Profile({ user }) {
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
-                      Specialization
-                    </label>
-                    <select
-                      name="specialization"
-                      value={profileData.specialization}
-                      onChange={handleInputChange}
-                      disabled={!isEditing}
-                      className="w-full px-3 py-2 border border-gray-600 bg-gray-700 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <option value="">Select specialization</option>
-                      <option value="Corporate Law">Corporate Law</option>
-                      <option value="Criminal Law">Criminal Law</option>
-                      <option value="Family Law">Family Law</option>
-                      <option value="Real Estate Law">Real Estate Law</option>
-                      <option value="Employment Law">Employment Law</option>
-                      <option value="Intellectual Property">Intellectual Property</option>
-                    </select>
-                  </div>
+                  
                 </div>
 
                 <div>
@@ -280,25 +261,6 @@ function Profile({ user }) {
                   </div>
                 )}
               </form>
-            </div>
-
-            {/* Security Settings */}
-            <div className="bg-gray-800 rounded-lg shadow p-6 border border-gray-700 mt-6">
-              <h3 className="text-xl font-semibold text-white mb-4">Security Settings</h3>
-              <div className="space-y-3">
-                <button className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg transition-colors duration-200 text-left flex items-center">
-                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-                  </svg>
-                  Change Password
-                </button>
-                <button className="w-full bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-lg transition-colors duration-200 text-left flex items-center">
-                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                  Delete Account
-                </button>
-              </div>
             </div>
           </div>
         </div>
